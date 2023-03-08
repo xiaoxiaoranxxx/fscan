@@ -2,11 +2,11 @@ package common
 
 import (
 	"bufio"
+	"encoding/hex"
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
-	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -136,14 +136,6 @@ func ParseInput(Info *HostInfo) {
 		BruteThread = 1
 	}
 
-	if TmpOutputfile != "" {
-		if !strings.Contains(Outputfile, "/") && !strings.Contains(Outputfile, `\`) {
-			Outputfile = getpath() + TmpOutputfile
-		} else {
-			Outputfile = TmpOutputfile
-		}
-	}
-
 	if TmpSave == true {
 		IsSave = false
 	}
@@ -174,8 +166,51 @@ func ParseInput(Info *HostInfo) {
 		Passwords = RemoveDuplicate(Passwords)
 	}
 	if Socks5Proxy != "" && !strings.HasPrefix(Socks5Proxy, "socks5://") {
-		Socks5Proxy = "socks5://" + Socks5Proxy
+		if !strings.Contains(Socks5Proxy, ":") {
+			Socks5Proxy = "socks5://127.0.0.1" + Socks5Proxy
+		} else {
+			Socks5Proxy = "socks5://" + Socks5Proxy
+		}
+	}
+	if Socks5Proxy != "" {
+		fmt.Println("Socks5Proxy:", Socks5Proxy)
+		_, err := url.Parse(Socks5Proxy)
+		if err != nil {
+			fmt.Println("Socks5Proxy parse error:", err)
+			os.Exit(0)
+		}
 		NoPing = true
+	}
+	if Proxy != "" {
+		if Proxy == "1" {
+			Proxy = "http://127.0.0.1:8080"
+		} else if Proxy == "2" {
+			Proxy = "socks5://127.0.0.1:1080"
+		} else if !strings.Contains(Proxy, "://") {
+			Proxy = "http://127.0.0.1:" + Proxy
+		}
+		fmt.Println("Proxy:", Proxy)
+		if !strings.HasPrefix(Proxy, "socks") && !strings.HasPrefix(Proxy, "http") {
+			fmt.Println("no support this proxy")
+			os.Exit(0)
+		}
+		_, err := url.Parse(Proxy)
+		if err != nil {
+			fmt.Println("Proxy parse error:", err)
+			os.Exit(0)
+		}
+	}
+
+	if Hash != "" && len(Hash) != 32 {
+		fmt.Println("[-] Hash is error,len(hash) must be 32")
+		os.Exit(0)
+	} else {
+		var err error
+		HashBytes, err = hex.DecodeString(Hash)
+		if err != nil {
+			fmt.Println("[-] Hash is error,hex decode error")
+			os.Exit(0)
+		}
 	}
 }
 
@@ -186,8 +221,16 @@ func ParseScantype(Info *HostInfo) {
 	}
 	if Scantype != "all" && Info.Ports == DefaultPorts+","+Webport {
 		switch Scantype {
-		case "rdp":
-			Info.Ports = "3389"
+		case "wmiexec":
+			Info.Ports = "135"
+		case "wmiinfo":
+			Info.Ports = "135"
+		case "smbinfo":
+			Info.Ports = "445"
+		case "hostname":
+			Info.Ports = "135,137,139,445"
+		case "smb2":
+			Info.Ports = "445"
 		case "web":
 			Info.Ports = Webport
 		case "webonly":
@@ -218,23 +261,6 @@ func CheckErr(text string, err error, flag bool) {
 			os.Exit(0)
 		}
 	}
-}
-
-func getpath() string {
-	file, _ := exec.LookPath(os.Args[0])
-	path1, _ := filepath.Abs(file)
-	filename := filepath.Dir(path1)
-	var path string
-	if strings.Contains(filename, "/") {
-		tmp := strings.Split(filename, `/`)
-		tmp[len(tmp)-1] = ``
-		path = strings.Join(tmp, `/`)
-	} else if strings.Contains(filename, `\`) {
-		tmp := strings.Split(filename, `\`)
-		tmp[len(tmp)-1] = ``
-		path = strings.Join(tmp, `\`)
-	}
-	return path
 }
 
 func showmode() {
